@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -eu
-
 ARG1=${ARG1:-}         
 ARG2=${ARG2:-}
 ARG3=${ARG3:-}
@@ -8,10 +7,9 @@ ARG4=${ARG4:-}
 ARG5=${ARG5:-}
 ARG6=${ARG6:-}
 HOSTNAME=$(hostname)
-AR_LOG="/var/ossec/active-response/active-responses.log"
-AR_LOG_FALLBACK="/tmp/active-responses-fallback.log"
+AR_LOG="/tmp/collect-suspicious-users-groups.log"
 TMP="/tmp/arlog.$$"
-LOG_PATH="/tmp/collect-suspicious-users.log"
+LOG_PATH="$AR_LOG"
 LOG_MAX_KB=100
 LOG_KEEP=5
 
@@ -29,11 +27,8 @@ rotate_log() {
 log() { printf '[%s][%s] %s\n' "$(date +'%F %T.%3N')" "$1" "$2" | tee -a "$LOG_PATH"; }
 
 write_json() {
-  printf '%s' "$1" > "$TMP"
-  mv -f "$TMP" "$AR_LOG" 2>/dev/null || {
-    mv -f "$TMP" "${AR_LOG}.new"
-    log WARN "AR log locked, wrote fallback ${AR_LOG}.new"
-  }
+  printf '%s' "$1" > "$LOG_PATH"
+  log INFO "Overwrote $LOG_PATH with JSON report"
 }
 
 rotate_log
@@ -73,15 +68,7 @@ report=$(jq -n \
   --argjson sudo "[$(IFS=,; echo "${flagsudo[*]}")]" \
   '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo}')
 
-write_json() {
-  printf '%s' "$1" > "$TMP"
-  if mv -f "$TMP" "$AR_LOG" 2>/dev/null; then
-    log INFO "Wrote to $AR_LOG"
-  else
-    mv -f "$TMP" "/tmp/active-responses-fallback.log"
-    log ERROR "Failed to write to $AR_LOG, wrote fallback /tmp/active-responses-fallback.log"
-  fi
-}
+write_json "$report"
 log INFO "Flagged users: ${#sus_users[@]}, sudo anomalies: ${#flagsudo[@]}"
 log INFO "=== SCRIPT END ==="
 exit 0
