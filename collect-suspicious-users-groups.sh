@@ -9,6 +9,7 @@ ARG5=${ARG5:-}
 ARG6=${ARG6:-}
 HOSTNAME=$(hostname)
 AR_LOG="/var/ossec/active-response/active-responses.log"
+AR_LOG_FALLBACK="/tmp/active-responses-fallback.log"
 TMP="/tmp/arlog.$$"
 LOG_PATH="/tmp/collect-suspicious-users.log"
 LOG_MAX_KB=100
@@ -72,7 +73,15 @@ report=$(jq -n \
   --argjson sudo "[$(IFS=,; echo "${flagsudo[*]}")]" \
   '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo}')
 
-write_json "$report"
+write_json() {
+  printf '%s' "$1" > "$TMP"
+  if mv -f "$TMP" "$AR_LOG" 2>/dev/null; then
+    log INFO "Wrote to $AR_LOG"
+  else
+    mv -f "$TMP" "/tmp/active-responses-fallback.log"
+    log ERROR "Failed to write to $AR_LOG, wrote fallback /tmp/active-responses-fallback.log"
+  fi
+}
 log INFO "Flagged users: ${#sus_users[@]}, sudo anomalies: ${#flagsudo[@]}"
 log INFO "=== SCRIPT END ==="
 exit 0

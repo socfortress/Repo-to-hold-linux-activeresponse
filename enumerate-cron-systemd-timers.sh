@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 ARG1=${ARG1:-}   
 HOSTNAME=$(hostname)
 AR_LOG="/var/ossec/active-response/active-responses.log"
+AR_LOG_FALLBACK="/tmp/active-responses-fallback.log"
 TMP="/tmp/arlog.$$"; LOG_PATH="/tmp/enumerate-cron-timers.log"; LOG_MAX_KB=100; LOG_KEEP=5
 rotate_log(){ [[ -f $LOG_PATH ]] || return; local kb=$(( $(stat -c%s "$LOG_PATH")/1024 )); if (( kb>=LOG_MAX_KB ));then for((i=LOG_KEEP-1;i>=0;i--));do [[ -f $LOG_PATH.$i ]]&&mv "$LOG_PATH.$i" "$LOG_PATH.$((i+1))";done; mv "$LOG_PATH" "$LOG_PATH.1";fi;}
 log(){ printf '[%s][%s] %s\n' "$(date +'%F %T.%3N')" "$1" "$2" | tee -a "$LOG_PATH"; }
-write_json(){ printf '%s' "$1" > "$TMP"; mv -f "$TMP" "$AR_LOG" 2>/dev/null || mv -f "$TMP" "${AR_LOG}.new"; }
 rotate_log
 
 cronsys=()
@@ -33,6 +33,16 @@ report=$(jq -n --arg host "$HOSTNAME" --arg ts "$(date -Iseconds)" \
   --argjson crons "[$(IFS=,;echo "${cronsys[*]}")]" \
   --argjson timers "[$(IFS=,;echo "${timers[*]}")]" \
   '{host:$host,timestamp:$ts,action:"enumerate_cron_systemd_timers",crons:$crons,timers:$timers}')
+
+write_json() {
+  printf '%s' "$1" > "$TMP"
+  if mv -f "$TMP" "$AR_LOG" 2>/dev/null; then
+    log INFO "Wrote to $AR_LOG"
+  else
+    mv -f "$TMP" "$AR_LOG_FALLBACK"
+    log ERROR "Failed to write to $AR_LOG, wrote fallback $AR_LOG_FALLBACK"
+  fi
+}
 
 write_json "$report"
 log INFO "Cron entries: ${#cronsys[@]}, timers: ${#timers[@]}"

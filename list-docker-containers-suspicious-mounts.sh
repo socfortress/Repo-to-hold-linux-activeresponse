@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -eu
+set -euo pipefail
 HOSTNAME=$(hostname)
 AR_LOG="/var/ossec/active-response/active-responses.log"; TMP="/tmp/arlog.$$"
 LOG_PATH="/tmp/list-docker-containers.log"; LOG_MAX_KB=100; LOG_KEEP=5
