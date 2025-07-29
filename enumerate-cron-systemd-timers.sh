@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-ARG1=${ARG1:-}   # optional username
+ARG1=${ARG1:-}   
 HOSTNAME=$(hostname)
 AR_LOG="/var/ossec/active-response/active-responses.log"
 TMP="/tmp/arlog.$$"; LOG_PATH="/tmp/enumerate-cron-timers.log"; LOG_MAX_KB=100; LOG_KEEP=5
@@ -10,12 +10,12 @@ write_json(){ printf '%s' "$1" > "$TMP"; mv -f "$TMP" "$AR_LOG" 2>/dev/null || m
 rotate_log
 
 cronsys=()
-# System crons
+
 while IFS= read -r file; do
   cronsys+=("$(jq -n --arg type system_cron --arg file "$file" '{type:$type,file:$file}')")
 done < <(grep -h -E -v '^(#|$)' /etc/cron*/* 2>/dev/null | awk '{print FILENAME":"$0}' | cut -d: -f1 | sort -u)
 
-# User crontabs
+
 users=("$ARG1"); [[ -z $ARG1 ]] && users=($(awk -F: '{print $1}' /etc/passwd))
 for u in "${users[@]}"; do
   crontab -l -u "$u" 2>/dev/null | grep -vE '^(#|$)' | while read -r line; do
@@ -23,7 +23,7 @@ for u in "${users[@]}"; do
   done
 done
 
-# systemd timers
+
 timers=()
 while read -r t; do
   timers+=("$(jq -n --arg type systemd_timer --arg timer "$t" '{type:$type,timer:$timer}')")
