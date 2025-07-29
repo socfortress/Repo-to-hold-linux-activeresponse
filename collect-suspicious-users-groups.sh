@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
+( set -o | grep -q pipefail ) && set -o pipefail
 ARG1=${ARG1:-}   
 HOSTNAME=$(hostname)
 AR_LOG="/var/ossec/active-response/active-responses.log"; TMP="/tmp/arlog.$$"
