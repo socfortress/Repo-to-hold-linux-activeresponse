@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -eu
+
 ARG1=${ARG1:-}         
 ARG2=${ARG2:-}
 ARG3=${ARG3:-}
@@ -7,9 +8,10 @@ ARG4=${ARG4:-}
 ARG5=${ARG5:-}
 ARG6=${ARG6:-}
 HOSTNAME=$(hostname)
-AR_LOG="/tmp/collect-suspicious-users-groups.log"
+AR_LOG="/var/ossec/active-response/active-responses.log"
+AR_LOG_FALLBACK="${AR_LOG}.new"
 TMP="/tmp/arlog.$$"
-LOG_PATH="$AR_LOG"
+LOG_PATH="/tmp/collect-suspicious-users-groups.log"
 LOG_MAX_KB=100
 LOG_KEEP=5
 
@@ -24,15 +26,24 @@ rotate_log() {
   fi
 }
 
-log() { printf '[%s][%s] %s\n' "$(date +'%F %T.%3N')" "$1" "$2" | tee -a "$LOG_PATH"; }
+log() {
+  local level="$1"; shift
+  printf '[%s][%s] %s\n' "$(date +'%F %T.%3N')" "$level" "$*" | tee -a "$LOG_PATH"
+}
 
 write_json() {
-  printf '%s' "$1" > "$LOG_PATH"
-  log INFO "Overwrote $LOG_PATH with JSON report"
+  printf '%s' "$1" > "$TMP"
+  if mv -f "$TMP" "$AR_LOG" 2>/dev/null; then
+    log INFO "Log file replaced at $AR_LOG"
+  else
+    mv -f "$TMP" "$AR_LOG_FALLBACK"
+    log WARN "Log locked, wrote results to $AR_LOG_FALLBACK"
+  fi
 }
 
 rotate_log
 log INFO "=== SCRIPT START : Collect Suspicious Users & Groups ==="
+run_start=$(date +%s)
 regex="${ARG1:-'^.*$'}"
 passwd=$(</etc/passwd)
 shadow=$(sudo cat /etc/shadow 2>/dev/null || true)
@@ -66,9 +77,12 @@ report=$(jq -n \
   --arg ts "$(date -Iseconds)" \
   --argjson users "[$(IFS=,; echo "${sus_users[*]}")]" \
   --argjson sudo "[$(IFS=,; echo "${flagsudo[*]}")]" \
-  '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo}')
+  '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo,copilot_soar:true}')
 
-write_json "$report"
+if ! write_json "$report"; then
+  log ERROR "Failed to write JSON report"
+fi
 log INFO "Flagged users: ${#sus_users[@]}, sudo anomalies: ${#flagsudo[@]}"
-log INFO "=== SCRIPT END ==="
+dur=$(( $(date +%s) - run_start ))
+log INFO "=== SCRIPT END : duration ${dur}s ==="
 exit 0
