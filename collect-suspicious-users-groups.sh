@@ -14,6 +14,7 @@ TMP="/tmp/arlog.$$"
 LOG_PATH="/tmp/collect-suspicious-users-groups.log"
 LOG_MAX_KB=100
 LOG_KEEP=5
+run_start=$(date +%s)
 
 rotate_log() {
   [[ -f $LOG_PATH ]] || return
@@ -43,7 +44,6 @@ write_json() {
 
 rotate_log
 log INFO "=== SCRIPT START : Collect Suspicious Users & Groups ==="
-run_start=$(date +%s)
 regex="${ARG1:-'^.*$'}"
 passwd=$(</etc/passwd)
 shadow=$(sudo cat /etc/shadow 2>/dev/null || true)
@@ -63,6 +63,7 @@ while IFS=: read -r user _ uid gid desc home shell; do
       --arg u "$user" --arg uid "$uid" --arg home "$home" --arg shell "$shell" \
       --arg noexp "$noexpiry" --arg locked "$locked" \
       '{user:$u,uid:($uid|tonumber),home:$home,shell:$shell,password_never_expires:($noexp=="true"),account_locked:($locked=="true")}')")
+    log INFO "Flagged user: $user (uid: $uid, home: $home, shell: $shell, noexpiry: $noexpiry, locked: $locked)"
   fi
 done <<< "$passwd"
 sudoers=$(grep -h -vE '^(#|Defaults)' /etc/sudoers /etc/sudoers.d/* 2>/dev/null | tr -s ' ')
@@ -71,13 +72,15 @@ while read -r line; do
   [[ -z $line ]] && continue
   usr=$(awk '{print $1}' <<< "$line")
   flagsudo+=("$(jq -n --arg user "$usr" --arg entry "$line" '{user:$user,sudo_entry:$entry}')")
+  log INFO "Flagged sudo anomaly: $usr entry: $line"
 done <<< "$sudoers"
 report=$(jq -n \
   --arg host "$HOSTNAME" \
   --arg ts "$(date -Iseconds)" \
   --argjson users "[$(IFS=,; echo "${sus_users[*]}")]" \
   --argjson sudo "[$(IFS=,; echo "${flagsudo[*]}")]" \
-  '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo,copilot_soar:true}')
+  --arg copilot_soar "true" \
+  '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo,copilot_soar:($copilot_soar|test("true"))}')
 
 if ! write_json "$report"; then
   log ERROR "Failed to write JSON report"
