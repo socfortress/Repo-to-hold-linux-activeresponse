@@ -82,6 +82,7 @@ report=$(jq -n \
   --arg copilot_soar "true" \
   '{host:$host,timestamp:$ts,action:"collect_suspicious_users",flagged_users:$users,sudo_anomalies:$sudo,copilot_soar:($copilot_soar|test("true"))}')
 
+echo "$report"
 if ! write_json "$report"; then
   log ERROR "Failed to write JSON report"
 fi
