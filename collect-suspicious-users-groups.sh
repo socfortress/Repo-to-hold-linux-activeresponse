@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -eu
-set -o pipefail 2>/dev/null || true
-ARG1=${ARG1:-}           
+set -o pipefail 2>/dev/null || true 
+
+ARG1=${ARG1:-}         
 ARG2=${ARG2:-}
 ARG3=${ARG3:-}
 ARG4=${ARG4:-}
@@ -44,7 +45,7 @@ shadow=$(sudo cat /etc/shadow 2>/dev/null || true)
 sus_users=()
 while IFS=: read -r user _ uid gid desc home shell; do
   [[ $user =~ $regex ]] || continue
-  [[ $uid -lt 1000 ]] && continue
+  [[ $uid -lt 1000 ]] && continue  
 
   pwinfo=$(grep "^$user:" <<< "$shadow" || true)
   noexpiry=false; locked=false
