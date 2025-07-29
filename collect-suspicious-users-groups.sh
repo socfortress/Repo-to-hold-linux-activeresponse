@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -eu
-set -o pipefail 2>/dev/null || true 
 
 ARG1=${ARG1:-}         
 ARG2=${ARG2:-}

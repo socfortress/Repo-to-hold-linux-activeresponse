@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
 ARG1=${ARG1:-}   
 HOSTNAME=$(hostname)
 AR_LOG="/var/ossec/active-response/active-responses.log"
